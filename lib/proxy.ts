@@ -81,6 +81,7 @@ export class Proxy implements IProxy {
   onResponseEndHandlers: HandlerType<IProxy["onResponseEnd"]>;
   onResponseHandlers: HandlerType<IProxy["onResponse"]>;
   onResponseHeadersHandlers: HandlerType<IProxy["onResponseHeaders"]>;
+  onMockResponseHandlers: HandlerType<IProxy["onMockResponse"]>;
   onWebSocketCloseHandlers: HandlerType<IProxy["onWebSocketClose"]>;
   onWebSocketConnectionHandlers: HandlerType<IProxy["onWebSocketConnection"]>;
   onWebSocketErrorHandlers: HandlerType<IProxy["onWebSocketError"]>;
@@ -109,6 +110,7 @@ export class Proxy implements IProxy {
     this.onRequestEndHandlers = [];
     this.onResponseHandlers = [];
     this.onResponseHeadersHandlers = [];
+    this.onMockResponseHandlers = [];
     this.onResponseDataHandlers = [];
     this.onResponseEndHandlers = [];
     this.responseContentPotentiallyModified = false;
@@ -343,6 +345,11 @@ export class Proxy implements IProxy {
     return this;
   }
 
+  onMockResponse(fn: OnRequestParams) {
+    this.onMockResponseHandlers.push(fn);
+    return this;
+  }
+
   onResponseData(fn: OnRequestDataParams) {
     this.onResponseDataHandlers.push(fn);
     this.responseContentPotentiallyModified = true;
@@ -381,6 +388,9 @@ export class Proxy implements IProxy {
     }
     if (mod.onResponseHeaders) {
       this.onResponseHeaders(mod.onResponseHeaders);
+    }
+    if (mod.onMockResponse) {
+      this.onMockResponse(mod.onMockResponse);
     }
     if (mod.onResponseData) {
       this.onResponseData(mod.onResponseData);
@@ -957,6 +967,8 @@ export class Proxy implements IProxy {
       onRequestDataHandlers: [],
       onResponseHeadersHandlers: [],
       onRequestHeadersHandlers: [],
+      onMockResponseHandlers: [],
+      isMockResponse: false,
       onRequestEndHandlers: [],
       onResponseHandlers: [],
       onResponseDataHandlers: [],
@@ -986,6 +998,10 @@ export class Proxy implements IProxy {
       },
       onRequestEnd(fn) {
         ctx.onRequestEndHandlers.push(fn);
+        return ctx;
+      },
+      onMockResponse(fn) {
+        ctx.onMockResponseHandlers.push(fn);
         return ctx;
       },
       addRequestFilter(filter) {
@@ -1028,6 +1044,9 @@ export class Proxy implements IProxy {
         }
         if (mod.onResponseData) {
           ctx.onResponseData(mod.onResponseData);
+        }
+        if (mod.onMockResponse) {
+          ctx.onMockResponse(mod.onMockResponse);
         }
         return ctx;
       },
@@ -1159,10 +1178,25 @@ export class Proxy implements IProxy {
           if (err) {
             return self._onError("ON_REQUESTHEADERS_ERROR", ctx, err);
           }
+          if (ctx.isMockResponse) {
+            return self._onMockResponse(ctx, (err: Error | undefined | null) => {
+              if (err) {
+                return self._onError("ON_MOCK_RESPONSE_ERROR", ctx, err);
+              }
+            });
+          }
           return makeProxyToServerRequest();
         });
       });
     }
+  }
+
+  _onMockResponse(ctx: IContext, callback: ErrorCallback) {
+    async.forEach(
+      this.onMockResponseHandlers.concat(ctx.onMockResponseHandlers),
+      (fn, callback) => fn(ctx, callback),
+      callback
+    );
   }
 
   _onRequestHeaders(ctx: IContext, callback: ErrorCallback) {

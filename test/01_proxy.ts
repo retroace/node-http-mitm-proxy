@@ -419,6 +419,58 @@ describe("proxy", function () {
         });
       });
     });
+
+    describe("mock response", () => {
+      it("should return a mock response and not connect to upstream", (done) => {
+        assert.ok(proxy);
+        const mockBody = "This is a mock response";
+        const mockStatus = 201;
+        let upstreamConnected = false;
+
+        const tempSrv = http.createServer(() => {
+          upstreamConnected = true;
+        });
+
+        tempSrv.listen(0, "127.0.0.1", () => {
+          const port = (tempSrv.address() as any).port;
+
+          proxy!.onRequest((ctx, callback) => {
+            ctx.isMockResponse = true;
+            return callback();
+          });
+
+          proxy!.onMockResponse((ctx, callback) => {
+            assert.strictEqual(
+              ctx.proxyToServerRequest,
+              undefined,
+              "proxyToServerRequest should be undefined"
+            );
+            ctx.proxyToClientResponse.writeHead(mockStatus, {
+              "Content-Type": "text/plain",
+            });
+            ctx.proxyToClientResponse.end(mockBody);
+            return callback();
+          });
+
+          proxyHttp(
+            `http://127.0.0.1:${port}/mock-test`,
+            false,
+            (err, resp, body) => {
+              tempSrv.close();
+              if (err) return done(err);
+              assert.strictEqual(resp.statusCode, mockStatus);
+              assert.strictEqual(body, mockBody);
+              assert.strictEqual(
+                upstreamConnected,
+                false,
+                "Should NOT have connected to upstream"
+              );
+              done();
+            }
+          );
+        });
+      });
+    });
   });
 
   describe("websocket server", function () {
