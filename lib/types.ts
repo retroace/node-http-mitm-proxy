@@ -191,6 +191,7 @@ export interface ICallbacks {
   onRequestData(fcn: OnRequestDataParams): void;
 
   onRequestEnd(fcn: OnRequestParams): void;
+  onMockResponse(fcn: OnRequestParams): void;
   /** Adds a function to get called at the beginning of the response.
 
      Arguments
@@ -318,6 +319,8 @@ export type IContext = ICallbacks &
     onRequestHeadersHandlers: OnRequestParams[];
     onResponseHeadersHandlers: OnRequestParams[];
     responseContentPotentiallyModified: boolean;
+    isMockResponse?: boolean;
+    onMockResponseHandlers: OnRequestParams[];
   };
 
 export interface ICertficateContext {
